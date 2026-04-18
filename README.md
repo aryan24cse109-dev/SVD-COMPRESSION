@@ -1,5 +1,5 @@
 # 🗜️ SVD Image Compression
-
+ [🚀 View Live Demo] https://aryan24cse109-dev.github.io/SVD-COMPRESSION/
 > **IIT Kharagpur Summer Research Internship Project**
 > Built by **Garishma** · Linear Algebra × Image Processing · NumPy
 
