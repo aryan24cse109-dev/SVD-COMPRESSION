@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVD Image Compression — Garishma | IIT Kharagpur</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: rgba(255,255,255,0.07);
+    --accent: #7c6dfa;
+    --accent2: #fa6d8c;
+    --accent3: #6dfad0;
+    --text: #f0eff8;
+    --muted: #7a7990;
+    --mono: 'Space Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+ 
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 200px;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.5;
+  }
+ 
+  /* Header */
+  header {
+    padding: 28px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+  .badge {
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+ 
+  /* Hero */
+  .hero {
+    padding: 64px 40px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .hero-tag {
+    display: inline-block;
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid rgba(124,109,250,0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(36px, 5vw, 60px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+  }
+  h1 .line2 { color: var(--accent); }
+  .hero-desc {
+    color: var(--muted);
+    line-height: 1.8;
+    max-width: 560px;
+    font-size: 13px;
+  }
+  .formula-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 28px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: fit-content;
+    font-size: 16px;
+  }
+  .formula-strip .eq { color: var(--muted); font-size: 12px; }
+  .formula-strip .mat { padding: 4px 12px; border-radius: 4px; font-family: var(--display); font-weight: 700; font-size: 18px; }
+  .mat-a { background: rgba(124,109,250,0.15); color: var(--accent); }
+  .mat-u { background: rgba(109,250,208,0.12); color: var(--accent3); }
+  .mat-s { background: rgba(250,109,140,0.12); color: var(--accent2); }
+  .mat-v { background: rgba(109,250,208,0.12); color: var(--accent3); }
+ 
+  /* Main layout */
+  .main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 40px 80px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+ 
+  /* Upload zone */
+  .upload-zone {
+    border: 1.5px dashed rgba(124,109,250,0.3);
+    border-radius: 12px;
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(124,109,250,0.03);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(124,109,250,0.07); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon {
+    width: 48px; height: 48px;
+    border: 1.5px solid rgba(124,109,250,0.4);
+    border-radius: 12px;
+    margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .upload-zone h3 { font-family: var(--display); font-size: 16px; margin-bottom: 8px; }
+  .upload-zone p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+ 
+  /* Canvas area */
+  .canvas-area { display: none; }
+  .canvas-area.visible { display: block; }
+  .canvas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .canvas-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .canvas-panel-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-label {
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .tag-orig { background: rgba(109,250,208,0.12); color: var(--accent3); }
+  .tag-comp { background: rgba(124,109,250,0.15); color: var(--accent); }
+  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  #diff-canvas-wrap { display: none; }
+  #diff-canvas-wrap.visible { display: block; }
+ 
+  /* Controls panel */
+  .controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: sticky;
+    top: 88px;
+  }
+  .ctrl-section { margin-bottom: 28px; }
+  .ctrl-section:last-child { margin-bottom: 0; }
+  .ctrl-label {
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: block;
+  }
+ 
+  /* Slider */
+  .slider-wrap { margin-bottom: 8px; }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  .slider-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .slider-row .val { font-size: 13px; font-weight: 700; color: var(--accent); min-width: 32px; text-align: right; }
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+ 
+  /* Metrics */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .metric-card {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .metric-card .m-label { font-size: 10px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; }
+  .metric-card .m-val { font-family: var(--display); font-size: 20px; font-weight: 700; }
+  .m-accent { color: var(--accent); }
+  .m-green { color: var(--accent3); }
+  .m-pink { color: var(--accent2); }
+ 
+  /* SV Chart */
+  #sv-bar-canvas { width: 100%; height: 60px; display: block; border-radius: 6px; }
+ 
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+  .btn-primary:hover { background: #8d80fa; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    width: 100%;
+    justify-content: center;
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: rgba(255,255,255,0.15); }
+  .btn:disabled { opacity: 0.4; pointer-events: none; }
+ 
+  /* Toggle */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .toggle-row label { font-size: 12px; color: var(--muted); }
+  .toggle {
+    width: 34px; height: 18px;
+    background: var(--surface2);
+    border-radius: 9px;
+    cursor: pointer;
+    position: relative;
+    border: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--accent); border-color: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(16px); }
+ 
+  /* Diff canvas */
+  .diff-panel {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+ 
+  /* Error/PSNR chart */
+  .chart-wrap {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .chart-title { font-size: 10px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px; }
+  #psnr-canvas { width: 100%; height: 80px; display: block; }
+ 
+  /* Presets */
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+ 
+  /* Channel mode */
+  .channel-tabs { display: flex; gap: 4px; }
+  .ch-tab {
+    flex: 1;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .ch-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(124,109,250,0.1); }
+ 
+  /* Loading */
+  .loading-overlay {
+    position: absolute; inset: 0;
+    background: rgba(10,10,15,0.8);
+    display: none;
+    align-items: center; justify-content: center;
+    border-radius: 12px;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 10;
+  }
+  .loading-overlay.visible { display: flex; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 12px; color: var(--muted); }
+ 
+  /* Notification */
+  .notif {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 12px;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+  }
+  .notif.show { transform: translateY(0); opacity: 1; }
+  .notif.success { border-color: rgba(109,250,208,0.3); color: var(--accent3); }
+ 
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; padding: 0 20px 60px; }
+    header, .hero { padding-left: 20px; padding-right: 20px; }
+    h1 { font-size: 32px; }
+    .controls { position: static; }
+  }
+</style>
+</head>
+<body>
+ 
+<header>
+  <div class="logo">SVD<span>compress</span></div>
+  <div class="badge">IIT KGP · NumPy Project · Garishma</div>
+</header>
+ 
+<div class="hero">
+  <div class="hero-tag">Linear Algebra × Image Processing</div>
+  <h1>Image Compression<br><span class="line2">via SVD</span></h1>
+  <p class="hero-desc">Upload any image and watch Singular Value Decomposition strip away redundancy in real time. Adjust rank k to find the sweet spot between file size and visual quality.</p>
+  <div class="formula-strip">
+    <span class="mat mat-a">A</span>
+    <span class="eq">≈</span>
+    <span class="mat mat-u">U<sub style="font-size:12px">k</sub></span>
+    <span class="eq">·</span>
+    <span class="mat mat-s">Σ<sub style="font-size:12px">k</sub></span>
+    <span class="eq">·</span>
+    <span class="mat mat-v">V<sup style="font-size:12px">T</sup><sub style="font-size:12px">k</sub></span>
+    <span class="eq" style="margin-left:8px;padding-left:12px;border-left:1px solid rgba(255,255,255,0.1)">rank-k approximation</span>
+  </div>
+</div>
+ 
+<div class="main">
+  <!-- Left column -->
+  <div style="position:relative">
+    <!-- Upload -->
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*">
+      <div class="upload-icon">⬆</div>
+      <h3>Drop image here</h3>
+      <p>PNG, JPG, WEBP — up to 2048×2048<br>Or click to browse files</p>
+      <div style="margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="preset-btn" onclick="loadDemo(event,'portrait')">Demo: portrait</button>
+        <button class="preset-btn" onclick="loadDemo(event,'landscape')">Demo: landscape</button>
+        <button class="preset-btn" onclick="loadDemo(event,'texture')">Demo: texture</button>
+      </div>
+    </div>
+ 
+    <!-- Canvas area -->
+    <div class="canvas-area" id="canvas-area">
+      <div class="canvas-grid">
+        <div class="canvas-panel">
+          <div class="canvas-panel-header">
+            <span class="panel-label">Original</span>
+            <span class="panel-tag tag-orig" id="orig-size-tag">—</span>
+          </div>
+          <canvas id="orig-canvas"></canvas>
+        </div>
+        <div class="canvas-panel">
+          <div class="canvas-panel-header">
+            <span class="panel-label">Compressed (rank k = <span id="k-display">—</span>)</span>
+            <span class="panel-tag tag-comp" id="comp-size-tag">—</span>
+          </div>
+          <canvas id="comp-canvas"></canvas>
+        </div>
+      </div>
+ 
+      <!-- Diff panel -->
+      <div id="diff-canvas-wrap" class="diff-panel">
+        <div class="canvas-panel-header">
+          <span class="panel-label">Error map (|original − compressed| × 5)</span>
+          <span class="panel-tag" style="background:rgba(250,109,140,0.12);color:var(--accent2)">difference</span>
+        </div>
+        <canvas id="diff-canvas"></canvas>
+      </div>
+    </div>
+ 
+    <div class="loading-overlay" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loading-text">Computing SVD...</div>
+    </div>
+  </div>
+ 
+  <!-- Right column — controls -->
+  <div class="controls">
+    <!-- Rank slider -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Rank k</span>
+      <div class="slider-wrap">
+        <div class="slider-row">
+          <label>k</label>
+          <input type="range" id="k-slider" min="1" max="100" value="20" step="1" oninput="onKChange(+this.value)">
+          <span class="val" id="k-val">20</span>
+        </div>
+      </div>
+      <div class="presets">
+        <button class="preset-btn" onclick="setK(5)">k=5</button>
+        <button class="preset-btn" onclick="setK(10)">k=10</button>
+        <button class="preset-btn" onclick="setK(20)">k=20</button>
+        <button class="preset-btn" onclick="setK(50)">k=50</button>
+        <button class="preset-btn" onclick="setK(100)">k=100</button>
+      </div>
+    </div>
+ 
+    <!-- Channel mode -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Channel mode</span>
+      <div class="channel-tabs">
+        <button class="ch-tab active" data-mode="rgb" onclick="setMode('rgb',this)">RGB</button>
+        <button class="ch-tab" data-mode="gray" onclick="setMode('gray',this)">Grayscale</button>
+      </div>
+    </div>
+ 
+    <!-- Metrics -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Metrics</span>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="m-label">Compression</div>
+          <div class="m-val m-accent" id="m-cr">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="m-label">PSNR (dB)</div>
+          <div class="m-val m-green" id="m-psnr">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="m-label">Energy %</div>
+          <div class="m-val m-pink" id="m-energy">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="m-label">Saved</div>
+          <div class="m-val m-green" id="m-saved">—</div>
+        </div>
+      </div>
+    </div>
+ 
+    <!-- SV chart -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Singular value spectrum</span>
+      <canvas id="sv-bar-canvas" height="60"></canvas>
+    </div>
+ 
+    <!-- PSNR chart -->
+    <div class="ctrl-section">
+      <div class="chart-wrap">
+        <div class="chart-title">PSNR vs k (quality curve)</div>
+        <canvas id="psnr-canvas" height="80"></canvas>
+      </div>
+    </div>
+ 
+    <!-- Toggles -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Display</span>
+      <div class="toggle-row">
+        <label>Show error map</label>
+        <div class="toggle" id="diff-toggle" onclick="toggleDiff()"></div>
+      </div>
+    </div>
+ 
+    <!-- Actions -->
+    <div class="ctrl-section">
+      <span class="ctrl-label">Export</span>
+      <button class="btn btn-primary" id="dl-btn" onclick="downloadCompressed()" disabled>⬇ Download compressed</button>
+      <button class="btn btn-secondary" onclick="resetAll()">↺ Upload new image</button>
+    </div>
+  </div>
+</div>
+ 
+<div class="notif" id="notif"></div>
+ 
+<script>
+// ─── State ────────────────────────────────────────────────────────────
+let origImageData = null;  // {r,g,b,a arrays, w, h} raw pixel data
+let svdData = null;        // {channels: [{U,S,Vt}], w, h}
+let currentK = 20;
+let channelMode = 'rgb';
+let showDiff = false;
+let psnrCurve = [];
+ 
+// ─── File input ───────────────────────────────────────────────────────
+const fileInput = document.getElementById('file-input');
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag'); const f = e.dataTransfer.files[0]; if(f) handleFile(f); });
+fileInput.addEventListener('change', e => { if(e.target.files[0]) handleFile(e.target.files[0]); });
+ 
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => processImage(img);
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+ 
+function loadDemo(e, type) {
+  e.stopPropagation();
+  // Generate synthetic demo images
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (type === 'portrait') {
+    const grd = ctx.createRadialGradient(128,100,20,128,128,160);
+    grd.addColorStop(0,'#f5c5a0'); grd.addColorStop(0.4,'#e0956a'); grd.addColorStop(1,'#2a1a0e');
+    ctx.fillStyle = grd; ctx.fillRect(0,0,256,256);
+    ctx.fillStyle='#3a2010'; ctx.beginPath(); ctx.ellipse(128,70,55,65,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#f5c5a0'; ctx.beginPath(); ctx.ellipse(128,140,50,60,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(105,128,7,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(151,128,7,0,Math.PI*2); ctx.fill();
+  } else if (type === 'landscape') {
+    const sky = ctx.createLinearGradient(0,0,0,130);
+    sky.addColorStop(0,'#0d1b4b'); sky.addColorStop(1,'#e8602c');
+    ctx.fillStyle=sky; ctx.fillRect(0,0,256,130);
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,130,256,126);
+    for(let i=0;i<12;i++){
+      ctx.fillStyle=`rgba(255,200,100,${0.3+Math.random()*0.4})`;
+      const x=Math.random()*240+8, y=80+Math.random()*50;
+      ctx.beginPath(); ctx.arc(x,y,1.5,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='#0d0d0d';
+    for(let i=0;i<6;i++){
+      const bx=20+i*38,bw=30,bh=40+Math.random()*60;
+      ctx.fillRect(bx,130-bh,bw,bh);
+      ctx.fillStyle='rgba(255,220,100,0.6)';
+      for(let r=0;r<3;r++) for(let c=0;c<2;c++){
+        if(Math.random()>0.4) ctx.fillRect(bx+4+c*12,130-bh+8+r*14,9,9);
+      }
+      ctx.fillStyle='#0d0d0d';
+    }
+  } else {
+    for(let y=0;y<256;y++) for(let x=0;x<256;x++){
+      const v = (Math.sin(x*0.3)*Math.cos(y*0.3)*127+128)|0;
+      const v2 = (Math.sin(x*0.07+y*0.05)*100+100)|0;
+      ctx.fillStyle=`rgb(${v2},${v},${255-v2})`;
+      ctx.fillRect(x,y,1,1);
+    }
+  }
+  const img = new Image();
+  img.onload = () => processImage(img);
+  img.src = canvas.toDataURL();
+}
+ 
+// ─── Process image ────────────────────────────────────────────────────
+async function processImage(imgEl) {
+  showLoading('Reading image...');
+  await sleep(30);
+ 
+  let W = imgEl.width, H = imgEl.height;
+  const MAX = 512;
+  if (W > MAX || H > MAX) {
+    const scale = MAX / Math.max(W, H);
+    W = Math.round(W * scale);
+    H = Math.round(H * scale);
+  }
+ 
+  const tmp = document.createElement('canvas');
+  tmp.width = W; tmp.height = H;
+  const ctx = tmp.getContext('2d');
+  ctx.drawImage(imgEl, 0, 0, W, H);
+  const id = ctx.getImageData(0, 0, W, H).data;
+ 
+  origImageData = { w: W, h: H, data: id };
+ 
+  // Draw original
+  const origCanvas = document.getElementById('orig-canvas');
+  origCanvas.width = W; origCanvas.height = H;
+  origCanvas.getContext('2d').putImageData(ctx.getImageData(0,0,W,H), 0, 0);
+  document.getElementById('orig-size-tag').textContent = `${W}×${H}`;
+ 
+  updateLoadingText('Computing SVD...');
+  await sleep(30);
+ 
+  svdData = await computeSVD(id, W, H);
+ 
+  // Slider max
+  const maxK = Math.min(Math.min(W, H), 200);
+  const slider = document.getElementById('k-slider');
+  slider.max = maxK;
+  if (currentK > maxK) currentK = Math.max(1, Math.floor(maxK * 0.3));
+  slider.value = currentK;
+  document.getElementById('k-val').textContent = currentK;
+ 
+  updateLoadingText('Building quality curve...');
+  await sleep(30);
+  await buildPsnrCurve(id, W, H);
+ 
+  hideLoading();
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('canvas-area').classList.add('visible');
+  document.getElementById('dl-btn').disabled = false;
+ 
+  renderCompressed(currentK);
+}
+ 
+async function computeSVD(pixels, W, H) {
+  const channels = [];
+  const modes = channelMode === 'gray' ? [0] : [0, 1, 2]; // R or R,G,B indices
+ 
+  for (const ch of [0,1,2]) {
+    const mat = new Float64Array(H * W);
+    for (let i = 0; i < H; i++)
+      for (let j = 0; j < W; j++)
+        mat[i*W+j] = pixels[(i*W+j)*4 + ch];
+    channels.push(thinSVD(mat, H, W));
+    await sleep(0); // yield
+  }
+  return { channels, w: W, h: H };
+}
+ 
+// ─── Thin SVD (Jacobi on AᵀA) ────────────────────────────────────────
+function thinSVD(A, m, n) {
+  // Compute AᵀA
+  const ATA = new Float64Array(n * n);
+  for (let i = 0; i < m; i++)
+    for (let j = 0; j < n; j++) {
+      const aij = A[i*n+j];
+      for (let k = 0; k < n; k++) ATA[j*n+k] += aij * A[i*n+k];
+    }
+ 
+  // Jacobi eigendecomposition of AᵀA
+  const V = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) V[i*n+i] = 1;
+ 
+  for (let iter = 0; iter < 40; iter++) {
+    for (let p = 0; p < n-1; p++) {
+      for (let q = p+1; q < n; q++) {
+        const apq = ATA[p*n+q];
+        if (Math.abs(apq) < 1e-13) continue;
+        const app = ATA[p*n+p], aqq = ATA[q*n+q];
+        const tau = (aqq-app)/(2*apq);
+        const t = tau>=0 ? 1/(tau+Math.sqrt(1+tau*tau)) : 1/(tau-Math.sqrt(1+tau*tau));
+        const c = 1/Math.sqrt(1+t*t), s = t*c;
+        for (let i = 0; i < n; i++) {
+          const vi=V[i*n+p], vj=V[i*n+q];
+          V[i*n+p]=c*vi-s*vj; V[i*n+q]=s*vi+c*vj;
+        }
+        for (let i = 0; i < n; i++) {
+          const ai=ATA[i*n+p], aj=ATA[i*n+q];
+          ATA[i*n+p]=c*ai-s*aj; ATA[i*n+q]=s*ai+c*aj;
+        }
+        for (let i = 0; i < n; i++) {
+          const ai=ATA[p*n+i], aj=ATA[q*n+i];
+          ATA[p*n+i]=c*ai-s*aj; ATA[q*n+i]=s*ai+c*aj;
+        }
+      }
+    }
+  }
+ 
+  // Sort eigenvalues
+  const k = Math.min(m, n);
+  const idx = Array.from({length:n},(_,i)=>i).sort((a,b)=>ATA[b*n+b]-ATA[a*n+a]);
+  const S = new Float64Array(k);
+  const Vt = new Float64Array(k*n);
+  for (let r = 0; r < k; r++) {
+    const j = idx[r];
+    S[r] = Math.sqrt(Math.max(0, ATA[j*n+j]));
+    for (let c = 0; c < n; c++) Vt[r*n+c] = V[c*n+j];
+  }
+ 
+  // Compute U columns
+  const U = new Float64Array(m*k);
+  for (let r = 0; r < k; r++) {
+    if (S[r] < 1e-10) continue;
+    for (let i = 0; i < m; i++) {
+      let s = 0;
+      for (let j = 0; j < n; j++) s += A[i*n+j] * Vt[r*n+j];
+      U[i*k+r] = s / S[r];
+    }
+  }
+  return { U, S, Vt, m, n, k };
+}
+ 
+function reconstruct(ch, rank) {
+  const { U, S, Vt, m, n } = ch;
+  const out = new Float64Array(m * n);
+  for (let r = 0; r < rank; r++) {
+    const sv = S[r];
+    if (sv < 1e-10) continue;
+    for (let i = 0; i < m; i++) {
+      const u = U[i*ch.k+r] * sv;
+      for (let j = 0; j < n; j++) out[i*n+j] += u * Vt[r*n+j];
+    }
+  }
+  return out;
+}
+ 
+// ─── Render ───────────────────────────────────────────────────────────
+function renderCompressed(k) {
+  if (!svdData) return;
+  const { channels, w, h } = svdData;
+  currentK = k;
+  document.getElementById('k-display').textContent = k;
+  document.getElementById('k-val').textContent = k;
+  document.getElementById('k-slider').value = k;
+ 
+  const compCanvas = document.getElementById('comp-canvas');
+  compCanvas.width = w; compCanvas.height = h;
+  const ctx = compCanvas.getContext('2d');
+  const id = ctx.createImageData(w, h);
+ 
+  const recs = channels.map(ch => reconstruct(ch, k));
+ 
+  for (let i = 0; i < w*h; i++) {
+    id.data[i*4+0] = Math.min(255, Math.max(0, Math.round(recs[0][i])));
+    id.data[i*4+1] = Math.min(255, Math.max(0, Math.round(recs[1][i])));
+    id.data[i*4+2] = Math.min(255, Math.max(0, Math.round(recs[2][i])));
+    id.data[i*4+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+ 
+  if (showDiff) renderDiff(recs);
+ 
+  updateMetrics(k, recs);
+  drawSVChart(k);
+  drawPsnrChart(k);
+}
+ 
+function renderDiff(recs) {
+  const { w, h } = svdData;
+  const diffCanvas = document.getElementById('diff-canvas');
+  diffCanvas.width = w; diffCanvas.height = h;
+  const ctx = diffCanvas.getContext('2d');
+  const id = ctx.createImageData(w, h);
+  const orig = origImageData.data;
+  for (let i = 0; i < w*h; i++) {
+    const dr = Math.abs(orig[i*4+0] - Math.min(255,Math.max(0,recs[0][i])));
+    const dg = Math.abs(orig[i*4+1] - Math.min(255,Math.max(0,recs[1][i])));
+    const db = Math.abs(orig[i*4+2] - Math.min(255,Math.max(0,recs[2][i])));
+    id.data[i*4+0] = Math.min(255, dr*5);
+    id.data[i*4+1] = Math.min(255, dg*5);
+    id.data[i*4+2] = Math.min(255, db*5);
+    id.data[i*4+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+}
+ 
+function updateMetrics(k, recs) {
+  const { w, h, channels } = svdData;
+  const orig = origImageData.data;
+  const origSize = w * h * 3;
+  const compSize = k * (1 + h + w) * 3;
+  const cr = (origSize / compSize).toFixed(1);
+ 
+  // PSNR on green channel (luminance proxy)
+  let mse = 0;
+  for (let i = 0; i < w*h; i++) {
+    const d = orig[i*4+1] - Math.min(255,Math.max(0,recs[1][i]));
+    mse += d*d;
+  }
+  mse /= w*h;
+  const psnrVal = mse > 0 ? (20*Math.log10(255/Math.sqrt(mse))).toFixed(1) : '∞';
+ 
+  // Energy
+  const ch = channels[1]; // green
+  const totalE = Array.from({length:ch.k},(_,i)=>ch.S[i]*ch.S[i]).reduce((a,b)=>a+b,0);
+  const kE = Array.from({length:k},(_,i)=>ch.S[i]*ch.S[i]).reduce((a,b)=>a+b,0);
+  const energyPct = Math.round(kE/totalE*100);
+  const savedPct = Math.round((1 - compSize/origSize)*100);
+ 
+  document.getElementById('m-cr').textContent = cr + '×';
+  document.getElementById('m-psnr').textContent = psnrVal;
+  document.getElementById('m-energy').textContent = energyPct + '%';
+  document.getElementById('m-saved').textContent = Math.max(0,savedPct) + '%';
+  document.getElementById('comp-size-tag').textContent = cr + '× smaller';
+}
+ 
+// ─── Charts ───────────────────────────────────────────────────────────
+function drawSVChart(activeK) {
+  if (!svdData) return;
+  const ch = svdData.channels[1];
+  const canvas = document.getElementById('sv-bar-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 60 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth, H = 60;
+  ctx.clearRect(0,0,W,H);
+  const n = Math.min(ch.k, 100);
+  const barW = Math.max(1, W/n - 1);
+  const logMax = Math.log(ch.S[0]+1);
+  for (let i = 0; i < n; i++) {
+    const x = (i/n)*W;
+    const logH = ch.S[i] > 0 ? Math.log(ch.S[i]+1)/logMax : 0;
+    const bh = logH * (H-4);
+    ctx.fillStyle = i < activeK ? '#7c6dfa' : '#2a2a38';
+    ctx.fillRect(x, H-bh, barW, bh);
+  }
+}
+ 
+async function buildPsnrCurve(pixels, W, H) {
+  psnrCurve = [];
+  const ch = svdData.channels[1]; // green channel
+  const orig = new Float64Array(W*H);
+  for (let i = 0; i < W*H; i++) orig[i] = pixels[i*4+1];
+ 
+  const steps = Math.min(ch.k, 50);
+  for (let si = 0; si < steps; si++) {
+    const k = Math.max(1, Math.round((si+1)/steps * ch.k));
+    const rec = reconstruct(ch, k);
+    let mse = 0;
+    for (let i = 0; i < W*H; i++) { const d=orig[i]-Math.min(255,Math.max(0,rec[i])); mse+=d*d; }
+    mse /= W*H;
+    psnrCurve.push({ k, psnr: mse>0 ? 20*Math.log10(255/Math.sqrt(mse)) : 60 });
+  }
+}
+ 
+function drawPsnrChart(activeK) {
+  if (!psnrCurve.length) return;
+  const canvas = document.getElementById('psnr-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 80 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = canvas.offsetWidth, H = 80;
+  ctx.clearRect(0,0,W,H);
+ 
+  const maxP = Math.max(...psnrCurve.map(d=>d.psnr));
+  const minP = Math.min(...psnrCurve.map(d=>d.psnr));
+  const maxK = psnrCurve[psnrCurve.length-1].k;
+ 
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#7c6dfa';
+  ctx.lineWidth = 1.5;
+  psnrCurve.forEach((pt,i) => {
+    const x = (pt.k/maxK)*W;
+    const y = H-4 - ((pt.psnr-minP)/(maxP-minP+1e-6))*(H-12);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+ 
+  // Active K marker
+  const ax = (activeK/maxK)*W;
+  const nearest = psnrCurve.reduce((a,b)=>Math.abs(b.k-activeK)<Math.abs(a.k-activeK)?b:a);
+  const ay = H-4 - ((nearest.psnr-minP)/(maxP-minP+1e-6))*(H-12);
+  ctx.fillStyle = '#fa6d8c';
+  ctx.beginPath(); ctx.arc(ax,ay,4,0,Math.PI*2); ctx.fill();
+ 
+  // Labels
+  ctx.fillStyle = '#7a7990';
+  ctx.font = '10px Space Mono, monospace';
+  ctx.fillText('k', 2, H-2);
+  ctx.fillText('PSNR', 2, 10);
+}
+ 
+// ─── Controls ─────────────────────────────────────────────────────────
+function onKChange(k) {
+  currentK = k;
+  renderCompressed(k);
+}
+ 
+function setK(k) {
+  currentK = Math.min(k, +document.getElementById('k-slider').max);
+  document.getElementById('k-slider').value = currentK;
+  renderCompressed(currentK);
+}
+ 
+function setMode(mode, el) {
+  channelMode = mode;
+  document.querySelectorAll('.ch-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  if (origImageData) {
+    showLoading('Recomputing SVD...');
+    setTimeout(async () => {
+      svdData = await computeSVD(origImageData.data, origImageData.w, origImageData.h);
+      await buildPsnrCurve(origImageData.data, origImageData.w, origImageData.h);
+      hideLoading();
+      renderCompressed(currentK);
+    }, 30);
+  }
+}
+ 
+function toggleDiff() {
+  showDiff = !showDiff;
+  const tog = document.getElementById('diff-toggle');
+  tog.classList.toggle('on', showDiff);
+  const wrap = document.getElementById('diff-canvas-wrap');
+  wrap.classList.toggle('visible', showDiff);
+  if (showDiff && svdData) {
+    const recs = svdData.channels.map(ch=>reconstruct(ch, currentK));
+    renderDiff(recs);
+  }
+}
+ 
+function downloadCompressed() {
+  if (!svdData) return;
+  const compCanvas = document.getElementById('comp-canvas');
+  const a = document.createElement('a');
+  a.download = `compressed_k${currentK}.png`;
+  a.href = compCanvas.toDataURL('image/png');
+  a.click();
+  showNotif('Downloaded compressed_k'+currentK+'.png', 'success');
+}
+ 
+function resetAll() {
+  origImageData = null; svdData = null;
+  document.getElementById('canvas-area').classList.remove('visible');
+  document.getElementById('upload-zone').style.display = '';
+  document.getElementById('dl-btn').disabled = true;
+  document.getElementById('file-input').value = '';
+  psnrCurve = [];
+}
+ 
+// ─── Utilities ────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function showLoading(msg) {
+  document.getElementById('loading-text').textContent = msg;
+  document.getElementById('loading').classList.add('visible');
+}
+function updateLoadingText(msg) { document.getElementById('loading-text').textContent = msg; }
+function hideLoading() { document.getElementById('loading').classList.remove('visible'); }
+function showNotif(msg, type='') {
+  const n = document.getElementById('notif');
+  n.textContent = msg;
+  n.className = 'notif show ' + type;
+  setTimeout(() => n.className = 'notif', 3000);
+}
+</script>
+</body>
+</html>
+ 
