@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────────────────────────────
+# SVD Image Compression — Python Dependencies
+# IIT Kharagpur Summer Research Internship
+# Author: Garishma
+#
+# Install all dependencies:
+#   pip install -r requirements.txt
+#
+# Tested with Python 3.9 / 3.10 / 3.11
+# ─────────────────────────────────────────────────────────────────────
+
+# Core scientific computing
+numpy>=1.24.0           # SVD via np.linalg.svd, matrix operations
+matplotlib>=3.7.0       # Plotting, image comparison, charts
+
+# Image handling
+Pillow>=10.0.0          # Load/save PNG, JPG, WEBP images
+
+# Data analysis & metrics table
+pandas>=2.0.0           # DataFrame for metrics summary, CSV export
+
+# PDF report generation
+reportlab>=4.0.0        # Create multi-page PDF report with charts
+
+# Jupyter notebook support
+jupyter>=1.0.0          # Run notebook.ipynb
+notebook>=7.0.0         # Jupyter notebook server
+ipykernel>=6.0.0        # IPython kernel for notebooks
+ipywidgets>=8.0.0       # Interactive widgets in notebooks (optional)
+
+# Development utilities
+scipy>=1.11.0           # Optional: scipy.linalg.svd for comparison
+scikit-image>=0.21.0    # Optional: skimage.metrics.structural_similarity (SSIM)
+tqdm>=4.66.0            # Optional: progress bars for batch processing
