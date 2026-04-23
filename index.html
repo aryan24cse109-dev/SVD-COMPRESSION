@@ -905,10 +905,11 @@ async function processImage(imgEl) {
   showLoading('Reading image...', 5);
   await sleep(30);
 
-  // FIX #1 & #2: Use naturalWidth/Height; raise cap to 800 so high-k has enough data
+  // Use naturalWidth/Height for correct dimensions on mobile
   let W = imgEl.naturalWidth || imgEl.width;
   let H = imgEl.naturalHeight || imgEl.height;
-  const MAX = 800;
+  // MAX=512: Jacobi SVD on AᵀA is O(n³) — at 512 it runs fine; at 800 it freezes the browser
+  const MAX = 512;
   if (W > MAX || H > MAX) {
     const scale = MAX / Math.max(W, H);
     W = Math.round(W * scale);
@@ -959,86 +960,104 @@ async function processImage(imgEl) {
   renderCompressed(currentK);
 }
  
+// ─── Web Worker blob — runs thinSVD off the main thread so UI never freezes ──
+function makeSVDWorker() {
+  const code = `
+    function thinSVD(A, m, n) {
+      const ATA = new Float64Array(n * n);
+      for (let i = 0; i < m; i++)
+        for (let j = 0; j < n; j++) {
+          const aij = A[i*n+j];
+          for (let k = 0; k < n; k++) ATA[j*n+k] += aij * A[i*n+k];
+        }
+      const V = new Float64Array(n * n);
+      for (let i = 0; i < n; i++) V[i*n+i] = 1;
+      for (let iter = 0; iter < 40; iter++) {
+        for (let p = 0; p < n-1; p++) {
+          for (let q = p+1; q < n; q++) {
+            const apq = ATA[p*n+q];
+            if (Math.abs(apq) < 1e-13) continue;
+            const app = ATA[p*n+p], aqq = ATA[q*n+q];
+            const tau = (aqq-app)/(2*apq);
+            const t = tau>=0 ? 1/(tau+Math.sqrt(1+tau*tau)) : 1/(tau-Math.sqrt(1+tau*tau));
+            const c = 1/Math.sqrt(1+t*t), s = t*c;
+            for (let i = 0; i < n; i++) {
+              const vi=V[i*n+p], vj=V[i*n+q];
+              V[i*n+p]=c*vi-s*vj; V[i*n+q]=s*vi+c*vj;
+            }
+            for (let i = 0; i < n; i++) {
+              const ai=ATA[i*n+p], aj=ATA[i*n+q];
+              ATA[i*n+p]=c*ai-s*aj; ATA[i*n+q]=s*ai+c*aj;
+            }
+            for (let i = 0; i < n; i++) {
+              const ai=ATA[p*n+i], aj=ATA[q*n+i];
+              ATA[p*n+i]=c*ai-s*aj; ATA[q*n+i]=s*ai+c*aj;
+            }
+          }
+        }
+      }
+      const k = Math.min(m, n);
+      const idx = Array.from({length:n},(_,i)=>i).sort((a,b)=>ATA[b*n+b]-ATA[a*n+a]);
+      const S = new Float64Array(k);
+      const Vt = new Float64Array(k*n);
+      for (let r = 0; r < k; r++) {
+        const j = idx[r];
+        S[r] = Math.sqrt(Math.max(0, ATA[j*n+j]));
+        for (let c = 0; c < n; c++) Vt[r*n+c] = V[c*n+j];
+      }
+      const U = new Float64Array(m*k);
+      for (let r = 0; r < k; r++) {
+        if (S[r] < 1e-10) continue;
+        for (let i = 0; i < m; i++) {
+          let s = 0;
+          for (let j = 0; j < n; j++) s += A[i*n+j] * Vt[r*n+j];
+          U[i*k+r] = s / S[r];
+        }
+      }
+      return { U, S, Vt, m, n, k };
+    }
+    self.onmessage = function(e) {
+      const { mat, m, n, ci } = e.data;
+      const result = thinSVD(mat, m, n);
+      // Transfer buffers back to main thread (zero-copy)
+      self.postMessage({ ci, U: result.U, S: result.S, Vt: result.Vt, m: result.m, n: result.n, k: result.k },
+        [result.U.buffer, result.S.buffer, result.Vt.buffer]);
+    };
+  `;
+  const blob = new Blob([code], { type: 'application/javascript' });
+  return new Worker(URL.createObjectURL(blob));
+}
+
+// Run SVD for one channel in a worker, returns a Promise
+function svdChannelInWorker(mat, m, n, ci) {
+  return new Promise((resolve, reject) => {
+    const w = makeSVDWorker();
+    w.onmessage = e => { w.terminate(); resolve(e.data); };
+    w.onerror   = e => { w.terminate(); reject(e); };
+    // Transfer mat buffer to worker (zero-copy)
+    w.postMessage({ mat, m, n, ci }, [mat.buffer]);
+  });
+}
+
 async function computeSVD(pixels, W, H) {
-  const channels = [];
   const chNames = ['R','G','B'];
+  const channelResults = new Array(3);
 
   for (let ci = 0; ci < 3; ci++) {
     updateLoadingText(`Decomposing ${chNames[ci]} channel…`);
-    setLoaderProgress(15 + ci * 25); // 15→40→65→90
+    setLoaderProgress(15 + ci * 25);
     const mat = new Float64Array(H * W);
     for (let i = 0; i < H; i++)
       for (let j = 0; j < W; j++)
         mat[i*W+j] = pixels[(i*W+j)*4 + ci];
-    channels.push(thinSVD(mat, H, W));
-    await sleep(0); // yield to browser so animation stays smooth
+    // Runs in worker — main thread stays alive, animation keeps playing
+    channelResults[ci] = await svdChannelInWorker(mat, H, W, ci);
   }
-  return { channels, w: W, h: H };
+  return { channels: channelResults, w: W, h: H };
 }
  
-// ─── Thin SVD (Jacobi on AᵀA) ────────────────────────────────────────
-function thinSVD(A, m, n) {
-  // Compute AᵀA
-  const ATA = new Float64Array(n * n);
-  for (let i = 0; i < m; i++)
-    for (let j = 0; j < n; j++) {
-      const aij = A[i*n+j];
-      for (let k = 0; k < n; k++) ATA[j*n+k] += aij * A[i*n+k];
-    }
- 
-  // Jacobi eigendecomposition of AᵀA
-  const V = new Float64Array(n * n);
-  for (let i = 0; i < n; i++) V[i*n+i] = 1;
- 
-  for (let iter = 0; iter < 40; iter++) {
-    for (let p = 0; p < n-1; p++) {
-      for (let q = p+1; q < n; q++) {
-        const apq = ATA[p*n+q];
-        if (Math.abs(apq) < 1e-13) continue;
-        const app = ATA[p*n+p], aqq = ATA[q*n+q];
-        const tau = (aqq-app)/(2*apq);
-        const t = tau>=0 ? 1/(tau+Math.sqrt(1+tau*tau)) : 1/(tau-Math.sqrt(1+tau*tau));
-        const c = 1/Math.sqrt(1+t*t), s = t*c;
-        for (let i = 0; i < n; i++) {
-          const vi=V[i*n+p], vj=V[i*n+q];
-          V[i*n+p]=c*vi-s*vj; V[i*n+q]=s*vi+c*vj;
-        }
-        for (let i = 0; i < n; i++) {
-          const ai=ATA[i*n+p], aj=ATA[i*n+q];
-          ATA[i*n+p]=c*ai-s*aj; ATA[i*n+q]=s*ai+c*aj;
-        }
-        for (let i = 0; i < n; i++) {
-          const ai=ATA[p*n+i], aj=ATA[q*n+i];
-          ATA[p*n+i]=c*ai-s*aj; ATA[q*n+i]=s*ai+c*aj;
-        }
-      }
-    }
-  }
- 
-  // Sort eigenvalues
-  const k = Math.min(m, n);
-  const idx = Array.from({length:n},(_,i)=>i).sort((a,b)=>ATA[b*n+b]-ATA[a*n+a]);
-  const S = new Float64Array(k);
-  const Vt = new Float64Array(k*n);
-  for (let r = 0; r < k; r++) {
-    const j = idx[r];
-    S[r] = Math.sqrt(Math.max(0, ATA[j*n+j]));
-    for (let c = 0; c < n; c++) Vt[r*n+c] = V[c*n+j];
-  }
- 
-  // Compute U columns
-  const U = new Float64Array(m*k);
-  for (let r = 0; r < k; r++) {
-    if (S[r] < 1e-10) continue;
-    for (let i = 0; i < m; i++) {
-      let s = 0;
-      for (let j = 0; j < n; j++) s += A[i*n+j] * Vt[r*n+j];
-      U[i*k+r] = s / S[r];
-    }
-  }
-  return { U, S, Vt, m, n, k };
-}
- 
+// thinSVD now runs inside the Web Worker blob above (main thread stays responsive)
+
 function reconstruct(ch, rank) {
   const { U, S, Vt, m, n } = ch;
   const out = new Float64Array(m * n);
