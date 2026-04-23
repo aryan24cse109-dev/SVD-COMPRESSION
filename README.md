@@ -1,238 +1,196 @@
-# 🗜️ SVD Image Compression
- [🚀 View Live Demo] https://aryan24cse109-dev.github.io/SVD-COMPRESSION/
->Implementation of Image Compression using SVD | Built by Aryan Agarwal · Linear Algebra × Image Processing · NumPy
+# SVD Image Compressor
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-7c6dfa?style=flat-square&logo=github)](https://yourusername.github.io/svd-compression)
-[![Made with](https://img.shields.io/badge/Made%20with-Vanilla%20JS%20%2B%20HTML-fa6d8c?style=flat-square)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-[![Math](https://img.shields.io/badge/Math-Singular%20Value%20Decomposition-6dfad0?style=flat-square)](https://en.wikipedia.org/wiki/Singular_value_decomposition)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+<div align="center">
 
----
+[![Live Demo](https://img.shields.io/badge/▶_Live_Demo-GitHub_Pages-7c6dfa?style=for-the-badge&logo=github)](https://aryan24cse109-dev.github.io/SVD-COMPRESSION/)
+[![JavaScript](https://img.shields.io/badge/Vanilla_JS-ES6+-fa6d8c?style=for-the-badge&logo=javascript&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Math](https://img.shields.io/badge/Jacobi_SVD-from_scratch-6dfad0?style=for-the-badge)](https://en.wikipedia.org/wiki/Jacobi_eigenvalue_algorithm)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-## 📌 Overview
+**Interactive, browser-native image compression using Singular Value Decomposition**  
+Built entirely in Vanilla JS — no backend, no libraries, no build step.
 
-This project demonstrates **image compression using Singular Value Decomposition (SVD)** — a foundational technique in linear algebra. By decomposing an image matrix into three components (U, Σ, Vᵀ), we can reconstruct a visually similar image using only the top-k singular values, drastically reducing data size while preserving perceptual quality.
+[Try the live demo →](https://aryan24cse109-dev.github.io/SVD-COMPRESSION/)
 
-The app runs **entirely in the browser** — no backend, no server, no NumPy install required. The full SVD pipeline (Jacobi eigendecomposition) is implemented from scratch in vanilla JavaScript.
-
-$$A \approx U_k \cdot \Sigma_k \cdot V_k^T$$
+</div>
 
 ---
 
-## 🌐 Live Demo
+## What It Does
 
-👉 **[Try it here](https://github.com/aryan24cse109-dev/SVD-COMPRESSION)**
+Upload any image and compress it in real time using **rank-k matrix approximation** via SVD. Drag the slider to choose how many singular values to keep — from aggressive compression (k=5) to near-lossless (k=max). The entire SVD pipeline runs in your browser, including:
 
-Upload any image or try the built-in demo images (portrait, landscape, texture) and drag the rank-k slider to explore compression in real time.
-
----
-
-## ✨ Features
-
-| Feature | Description |
-|---|---|
-| 📤 **Image Upload** | PNG, JPG, WEBP — up to 512×512 (auto-resized) |
-| 🎚️ **Rank-k Slider** | Live compression — drag to see quality change instantly |
-| 🔢 **Preset buttons** | Quick-set k = 5, 10, 20, 50, 100 |
-| 🎨 **RGB & Grayscale** | SVD applied per-channel or in grayscale mode |
-| 📊 **4 Live Metrics** | Compression ratio, PSNR (dB), energy retained %, bytes saved |
-| 📉 **SV Spectrum** | Singular value bar chart (green = used, gray = discarded) |
-| 📈 **PSNR Curve** | Quality vs k chart with live marker |
-| 🔍 **Error Map** | Difference image (amplified ×5) to visualise information loss |
-| ⬇️ **Download** | Export compressed image as PNG |
-| 🖼️ **Demo Images** | Three synthetic test images built-in |
+- Per-channel Jacobi eigendecomposition on AᵀA
+- Live reconstruction as you drag the slider
+- PSNR quality metric and compression ratio
+- Error map visualisation (normalised difference heatmap)
+- Lossless PNG download at exact selected quality
 
 ---
 
-## 🧮 The Math
+## The Math
 
-### SVD Decomposition
+Any image channel (m×n matrix) can be factored via SVD:
 
-Any real matrix **A** of size m×n can be factored as:
+$$A = U \cdot \Sigma \cdot V^T$$
 
-```
-A = U · Σ · Vᵀ
-```
+Keeping only the top-k singular values gives the **best rank-k approximation** (Eckart–Young theorem):
 
-where:
-- **U** (m×m) — left singular vectors (orthogonal)
-- **Σ** (m×n) — diagonal matrix of singular values in descending order
-- **Vᵀ** (n×n) — right singular vectors (orthogonal)
+$$A_k = U_k \cdot \Sigma_k \cdot V_k^T \quad \text{where } \|A - A_k\|_F \text{ is minimised}$$
 
-### Rank-k Approximation
+**Compression ratio:**
 
-Keeping only the top-k singular values gives the **best rank-k approximation** (by Eckart–Young theorem):
+$$\text{ratio} = \frac{m \times n}{k \times (1 + m + n)}$$
 
-```
-A_k = U_k · Σ_k · Vₖᵀ
-```
+**Quality metric (PSNR):**
 
-### Compression Ratio
+$$\text{PSNR} = 20 \cdot \log_{10}\!\left(\frac{255}{\sqrt{\text{MSE}}}\right) \quad \text{dB}$$
 
-```
-Original size  = m × n  (pixels)
-Compressed size = k × (1 + m + n)  (storing U_k, Σ_k, Vₖᵀ)
-
-Compression ratio = (m × n) / (k × (1 + m + n))
-```
-
-### Quality Metric — PSNR
-
-Peak Signal-to-Noise Ratio (higher = better):
-
-```
-PSNR = 20 · log₁₀(255 / √MSE)
-```
-
-A PSNR above ~30 dB is generally considered good visual quality.
-
-### Algorithm Used
-
-The SVD is computed via **Jacobi eigendecomposition** on AᵀA:
-1. Compute AᵀA (n×n symmetric matrix)
-2. Run Jacobi iterations to diagonalise → get eigenvalues and V
-3. Singular values σᵢ = √λᵢ
-4. Recover U columns: uᵢ = A·vᵢ / σᵢ
+A PSNR above ~30 dB is considered perceptually good quality.
 
 ---
 
-## 🗂️ Project Structure
+## Algorithm: Jacobi SVD from Scratch
+
+The browser has no `numpy.linalg.svd`. This app implements the full pipeline:
 
 ```
-svd-compression/
-│
-├── index.html          ← Entire app (self-contained, no dependencies)
-├── README.md           ← This file
-└── LICENSE             ← MIT License
+1. Extract R, G, B channel matrices  (Float64Array)
+2. For each channel:
+   a. Compute AᵀA  (n×n symmetric)
+   b. Jacobi iterations → orthogonal V, eigenvalues λᵢ
+   c. Singular values σᵢ = √λᵢ,  sort descending
+   d. Recover U columns: uᵢ = A·vᵢ / σᵢ
+3. For slider value k:
+   reconstruct = Σ(i=0..k-1) σᵢ · uᵢ · vᵢᵀ
+4. Clamp to [0,255], write to ImageData
 ```
 
-The app is a **single self-contained HTML file** — all CSS, JavaScript, and SVD math is inline. No build step, no npm, no framework.
-
----
-
-## 🚀 Run Locally
-
-No installation needed. Just open the file:
-
-```bash
-# Clone the repo
-git clone https://github.com/aryan24cse109-dev/SVD-COMPRESSION
-cd svd-compression
-
-# Open in browser (any of these)
-open index.html                        # macOS
-start index.html                       # Windows
-xdg-open index.html                    # Linux
-
-# Or serve locally
-python -m http.server 8000
-# Then visit http://localhost:8000
-```
-
----
-
-## 🔬 Python Equivalent (NumPy)
-
-The browser app mirrors this Python/NumPy pipeline exactly:
+The same pipeline in NumPy (for reference):
 
 ```python
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 
-# Step 1 — Load image as float matrix
-img = np.array(Image.open("photo.jpg").convert("L"), dtype=np.float64)
-# img.shape → (512, 512)
+img = np.array(Image.open("photo.jpg").convert("RGB"), dtype=np.float64)
 
-# Step 2 — SVD decomposition
-U, S, Vt = np.linalg.svd(img, full_matrices=False)
-# U: (512, 512), S: (512,), Vt: (512, 512)
+def svd_compress(channel, k):
+    U, S, Vt = np.linalg.svd(channel, full_matrices=False)
+    return np.clip(U[:, :k] @ np.diag(S[:k]) @ Vt[:k, :], 0, 255)
 
-# Step 3 — Keep only top-k singular values
-def compress(U, S, Vt, k):
-    return U[:, :k] @ np.diag(S[:k]) @ Vt[:k, :]
+k = 30
+compressed = np.stack([svd_compress(img[:,:,c], k) for c in range(3)], axis=2)
 
-# Step 4 — Reconstruct
-k = 20
-reconstructed = compress(U, S, Vt, k)
-
-# Step 5 — Visualise
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-ax1.imshow(img, cmap='gray'); ax1.set_title('Original')
-ax2.imshow(np.clip(reconstructed, 0, 255), cmap='gray')
-ax2.set_title(f'Compressed (k={k})')
-plt.tight_layout()
-plt.savefig('comparison.png', dpi=150)
-
-# PSNR
-mse = np.mean((img - np.clip(reconstructed, 0, 255)) ** 2)
+# Quality metrics
+mse = np.mean((img - compressed) ** 2)
 psnr = 20 * np.log10(255.0 / np.sqrt(mse))
-print(f"PSNR: {psnr:.2f} dB")
-
-# Compression ratio
-orig_size = img.shape[0] * img.shape[1]
-comp_size = k * (1 + img.shape[0] + img.shape[1])
-print(f"Compression ratio: {orig_size/comp_size:.1f}x")
+ratio = (img.shape[0]*img.shape[1]) / (k*(1+img.shape[0]+img.shape[1]))
+print(f"PSNR: {psnr:.1f} dB | Compression: {ratio:.1f}×")
 ```
 
 ---
 
-## 📸 Screenshots
+## Features
 
-| Original | k=5 | k=20 | k=50 |
-|---|---|---|---|
-| Full quality | High compression | Balanced | Near-original |
-| — | ~10× smaller | ~4× smaller | ~2× smaller |
-
----
-
-## 📚 Key Concepts Covered
-
-- **Singular Value Decomposition** — core matrix factorisation technique
-- **Low-rank matrix approximation** — Eckart–Young–Mirsky theorem
-- **Information theory** — energy compaction in singular value spectra
-- **Image processing** — pixel matrix operations, channel decomposition
-- **Numerical methods** — Jacobi iteration for symmetric eigenproblems
-- **Quality metrics** — MSE, PSNR, compression ratio
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
+| Feature | Detail |
 |---|---|
-| Language | Vanilla JavaScript (ES6+) |
-| Math | Custom Jacobi SVD — no libraries |
-| Rendering | HTML5 Canvas API |
-| Styling | CSS3 with custom properties |
-| Fonts | Space Mono + Syne (Google Fonts) |
-| Deployment | GitHub Pages / Vercel / Netlify |
+| 📤 **Image Upload** | PNG, JPG, WEBP — drag & drop or click, up to 800×800 |
+| 🎚️ **Rank-k Slider** | Real-time reconstruction as you drag — full range k=1 to min(W,H) |
+| 📊 **4 Live Metrics** | Compression ratio, PSNR (dB), energy retained %, bytes saved |
+| 📉 **SV Spectrum** | Singular value bar chart — see which components are kept/discarded |
+| 📈 **PSNR Curve** | Quality vs k chart with live position marker |
+| 🔍 **Error Map** | Normalised blue→red heatmap of reconstruction error |
+| 🎨 **RGB & Grayscale** | SVD applied per-channel (RGB) or on luminance (grayscale) |
+| ⬇️ **HQ Download** | Lossless PNG, fresh full-resolution reconstruction at exact k value |
+| 🖼️ **Demo Images** | Three synthetic test images (portrait, landscape, texture) |
+| 📱 **Mobile-friendly** | Responsive layout, touch-optimised slider, high-quality scaling |
 
 ---
 
-## 📖 References
+## Project Structure
+
+```
+SVD-COMPRESSION/
+├── index.html          ← Entire app — all CSS, JS, SVD math inline (no build)
+├── README.md           ← This file
+├── notebook.ipynb      ← Python/NumPy equivalent implementation
+├── report.pdf          ← Full mathematical writeup
+├── requirements.txt    ← Python deps for notebook
+└── results/            ← Sample compression outputs
+    ├── error_maps.png
+    ├── psnr_vs_k_curves.png
+    ├── singular_value_spectrum.png
+    └── *_compression_grid.png
+```
+
+---
+
+## Run Locally
+
+No install needed — just open the file:
+
+```bash
+git clone https://github.com/aryan24cse109-dev/SVD-COMPRESSION
+cd SVD-COMPRESSION
+
+# Option 1 — direct open
+open index.html          # macOS
+start index.html         # Windows
+xdg-open index.html      # Linux
+
+# Option 2 — local server (recommended)
+python -m http.server 8000
+# → http://localhost:8000
+```
+
+For the Python notebook:
+
+```bash
+pip install -r requirements.txt
+jupyter notebook notebook.ipynb
+```
+
+---
+
+## Tech Stack
+
+| Layer | Detail |
+|---|---|
+| Language | Vanilla JavaScript (ES6+, no framework) |
+| Math | Custom Jacobi SVD — zero libraries |
+| Rendering | HTML5 Canvas API + ImageData |
+| Styling | CSS3, CSS custom properties, responsive grid |
+| Fonts | Space Mono + Syne (Google Fonts) |
+| Deployment | GitHub Pages (auto-deploy from `main`) |
+
+---
+
+## Key Concepts
+
+- **Singular Value Decomposition** — matrix factorisation, U·Σ·Vᵀ
+- **Low-rank approximation** — Eckart–Young–Mirsky theorem
+- **Jacobi eigendecomposition** — iterative algorithm for symmetric matrices
+- **Information compaction** — energy in the singular value spectrum
+- **PSNR / MSE** — standard image quality metrics
+- **HTML5 Canvas API** — pixel-level image manipulation in the browser
+
+---
+
+## References
 
 - Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations* (4th ed.). Johns Hopkins University Press.
 - Eckart, C., & Young, G. (1936). The approximation of one matrix by another of lower rank. *Psychometrika*, 1(3), 211–218.
-- [NumPy linalg.svd documentation](https://numpy.org/doc/stable/reference/generated/numpy.linalg.svd.html)
+- [NumPy linalg.svd](https://numpy.org/doc/stable/reference/generated/numpy.linalg.svd.html)
 - [Wikipedia: Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition)
 
 ---
 
-## 👩‍💻 Author
+## Author
 
-**Garishma**
-Summer Research Intern · IIT Kharagpur
-Project: NumPy / Pandas / Matplotlib Internship
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+**Aryan Agarwal** · [GitHub](https://github.com/aryan24cse109-dev)
 
 ---
 
 <div align="center">
-  Made with ♥ for IIT Kharagpur Summer Research Internship
+  <sub>MIT License · Deployed on GitHub Pages</sub>
 </div>
