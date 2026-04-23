@@ -192,7 +192,7 @@
   }
   .tag-orig { background: rgba(109,250,208,0.12); color: var(--accent3); }
   .tag-comp { background: rgba(124,109,250,0.15); color: var(--accent); }
-  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  canvas { display: block; width: 100%; height: auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; }
   #diff-canvas-wrap { display: none; }
   #diff-canvas-wrap.visible { display: block; }
  
@@ -374,27 +374,47 @@
   }
   .ch-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(124,109,250,0.1); }
  
-  /* Loading */
+  /* FIX #3 — Animated matrix loader replaces boring spinner */
   .loading-overlay {
     position: absolute; inset: 0;
-    background: rgba(10,10,15,0.8);
+    background: rgba(10,10,15,0.92);
     display: none;
     align-items: center; justify-content: center;
     border-radius: 12px;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
     z-index: 10;
   }
   .loading-overlay.visible { display: flex; }
-  .spinner {
-    width: 32px; height: 32px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .loader-canvas-wrap {
+    border-radius: 12px;
+    border: 1px solid rgba(124,109,250,0.2);
+    overflow: hidden;
+    box-shadow: 0 0 32px rgba(124,109,250,0.12);
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 12px; color: var(--muted); }
+  #loader-canvas { display: block; }
+  .loader-progress-bar-bg {
+    width: 220px; height: 4px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .loader-progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    border-radius: 99px;
+    transition: width 0.25s ease;
+    box-shadow: 0 0 10px rgba(124,109,250,0.5);
+  }
+  .loading-text {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+  /* hide old spinner if any lingering */
+  .spinner { display: none; }
  
   /* Notification */
   .notif {
@@ -413,11 +433,36 @@
   .notif.show { transform: translateY(0); opacity: 1; }
   .notif.success { border-color: rgba(109,250,208,0.3); color: var(--accent3); }
  
+  /* FIX #2 — Mobile responsive overhaul */
   @media (max-width: 900px) {
-    .main { grid-template-columns: 1fr; padding: 0 20px 60px; }
-    header, .hero { padding-left: 20px; padding-right: 20px; }
-    h1 { font-size: 32px; }
-    .controls { position: static; }
+    .main { grid-template-columns: 1fr; padding: 0 16px 60px; gap: 16px; }
+    header { padding: 16px 16px; }
+    .hero { padding: 32px 16px 24px; }
+    h1 { font-size: 28px; letter-spacing: -1px; }
+    .hero-desc { font-size: 12px; }
+    .formula-strip { font-size: 13px; gap: 8px; padding: 12px 14px; overflow-x: auto; }
+    .controls { position: static; padding: 16px; }
+    .canvas-grid { grid-template-columns: 1fr; gap: 12px; }
+    .metrics-grid { grid-template-columns: 1fr 1fr; }
+    /* Bigger touch targets for slider on mobile */
+    input[type=range] { height: 6px; }
+    input[type=range]::-webkit-slider-thumb {
+      width: 22px; height: 22px;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent); border: 2px solid var(--bg);
+    }
+    .preset-btn { padding: 8px 14px; font-size: 12px; }
+    .btn { padding: 13px 18px; font-size: 13px; }
+    .upload-zone { padding: 32px 16px; }
+    .notif { bottom: 16px; right: 16px; left: 16px; }
+  }
+  @media (max-width: 480px) {
+    .canvas-panel-header { flex-wrap: wrap; gap: 4px; }
+    .channel-tabs { gap: 6px; }
+    .ch-tab { padding: 8px 4px; font-size: 11px; }
+    .presets { gap: 6px; }
   }
 </style>
 </head>
@@ -490,7 +535,12 @@
     </div>
  
     <div class="loading-overlay" id="loading">
-      <div class="spinner"></div>
+      <div class="loader-canvas-wrap">
+        <canvas id="loader-canvas" width="260" height="140"></canvas>
+      </div>
+      <div class="loader-progress-bar-bg">
+        <div class="loader-progress-bar-fill" id="loader-bar"></div>
+      </div>
       <div class="loading-text" id="loading-text">Computing SVD...</div>
     </div>
   </div>
@@ -590,6 +640,79 @@ let currentK = 20;
 let channelMode = 'rgb';
 let showDiff = false;
 let psnrCurve = [];
+
+// ─── FIX #3: Matrix loader animation ──────────────────────────────────
+let loaderRAF = null;
+let loaderProgress = 0;
+
+function startLoaderAnimation() {
+  const canvas = document.getElementById('loader-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const COLS = 13, ROWS = 7;
+  let t = 0;
+
+  function frame() {
+    ctx.clearRect(0, 0, W, H);
+    t += 0.05;
+    const cellW = W / COLS, cellH = H / ROWS;
+    const filled = (loaderProgress / 100) * COLS * ROWS;
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const idx = r * COLS + c;
+        const wave = Math.sin(t - c * 0.45 - r * 0.35) * 0.5 + 0.5;
+        const x = c * cellW + 2, y = r * cellH + 2;
+        const w = cellW - 4, h = cellH - 4;
+        let color;
+        if (idx < filled - 1) {
+          color = `rgba(124,109,250,${0.55 + wave * 0.3})`;
+        } else if (idx < filled + 2) {
+          color = `rgba(109,250,208,${0.6 + wave * 0.35})`;
+        } else {
+          color = `rgba(255,255,255,${0.03 + wave * 0.04})`;
+        }
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 3);
+        ctx.fill();
+
+        // Label active frontier
+        if (idx >= Math.floor(filled) && idx <= Math.floor(filled) + 1) {
+          ctx.fillStyle = 'rgba(255,255,255,0.8)';
+          ctx.font = `${Math.min(cellW, cellH) * 0.52}px Space Mono, monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('σ', x + w / 2, y + h / 2);
+        }
+      }
+    }
+
+    // Scan line
+    const sx = ((t * 35) % (W + 40)) - 20;
+    const sg = ctx.createLinearGradient(sx - 20, 0, sx + 20, 0);
+    sg.addColorStop(0, 'rgba(124,109,250,0)');
+    sg.addColorStop(0.5, 'rgba(124,109,250,0.18)');
+    sg.addColorStop(1, 'rgba(124,109,250,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, 0, W, H);
+
+    loaderRAF = requestAnimationFrame(frame);
+  }
+  if (loaderRAF) cancelAnimationFrame(loaderRAF);
+  frame();
+}
+
+function stopLoaderAnimation() {
+  if (loaderRAF) { cancelAnimationFrame(loaderRAF); loaderRAF = null; }
+}
+
+function setLoaderProgress(pct) {
+  loaderProgress = pct;
+  const bar = document.getElementById('loader-bar');
+  if (bar) bar.style.width = pct + '%';
+}
  
 // ─── File input ───────────────────────────────────────────────────────
 const fileInput = document.getElementById('file-input');
@@ -658,67 +781,76 @@ function loadDemo(e, type) {
  
 // ─── Process image ────────────────────────────────────────────────────
 async function processImage(imgEl) {
-  showLoading('Reading image...');
+  showLoading('Reading image...', 5);
   await sleep(30);
- 
-  let W = imgEl.width, H = imgEl.height;
-  const MAX = 512;
+
+  // FIX #1 & #2: Use naturalWidth/Height; raise cap to 800 so high-k has enough data
+  let W = imgEl.naturalWidth || imgEl.width;
+  let H = imgEl.naturalHeight || imgEl.height;
+  const MAX = 800;
   if (W > MAX || H > MAX) {
     const scale = MAX / Math.max(W, H);
     W = Math.round(W * scale);
     H = Math.round(H * scale);
   }
- 
+
   const tmp = document.createElement('canvas');
   tmp.width = W; tmp.height = H;
   const ctx = tmp.getContext('2d');
+  // FIX #2: high-quality downscaling
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(imgEl, 0, 0, W, H);
   const id = ctx.getImageData(0, 0, W, H).data;
- 
+
   origImageData = { w: W, h: H, data: id };
- 
+
   // Draw original
   const origCanvas = document.getElementById('orig-canvas');
   origCanvas.width = W; origCanvas.height = H;
   origCanvas.getContext('2d').putImageData(ctx.getImageData(0,0,W,H), 0, 0);
   document.getElementById('orig-size-tag').textContent = `${W}×${H}`;
- 
-  updateLoadingText('Computing SVD...');
+
+  updateLoadingText('Computing SVD...'); setLoaderProgress(15);
   await sleep(30);
- 
+
   svdData = await computeSVD(id, W, H);
- 
-  // Slider max
-  const maxK = Math.min(Math.min(W, H), 200);
+
+  // FIX #1: allow full rank min(W,H), not artificially capped at 200
+  const maxK = Math.min(W, H);
   const slider = document.getElementById('k-slider');
   slider.max = maxK;
   if (currentK > maxK) currentK = Math.max(1, Math.floor(maxK * 0.3));
   slider.value = currentK;
   document.getElementById('k-val').textContent = currentK;
- 
-  updateLoadingText('Building quality curve...');
+
+  updateLoadingText('Building quality curve...'); setLoaderProgress(90);
   await sleep(30);
   await buildPsnrCurve(id, W, H);
- 
+
+  setLoaderProgress(100);
+  await sleep(180);
   hideLoading();
   document.getElementById('upload-zone').style.display = 'none';
   document.getElementById('canvas-area').classList.add('visible');
   document.getElementById('dl-btn').disabled = false;
- 
+
   renderCompressed(currentK);
 }
  
 async function computeSVD(pixels, W, H) {
   const channels = [];
-  const modes = channelMode === 'gray' ? [0] : [0, 1, 2]; // R or R,G,B indices
- 
-  for (const ch of [0,1,2]) {
+  const chNames = ['R','G','B'];
+
+  for (let ci = 0; ci < 3; ci++) {
+    updateLoadingText(`Decomposing ${chNames[ci]} channel…`);
+    setLoaderProgress(15 + ci * 25); // 15→40→65→90
     const mat = new Float64Array(H * W);
     for (let i = 0; i < H; i++)
       for (let j = 0; j < W; j++)
-        mat[i*W+j] = pixels[(i*W+j)*4 + ch];
+        mat[i*W+j] = pixels[(i*W+j)*4 + ci];
     channels.push(thinSVD(mat, H, W));
-    await sleep(0); // yield
+    await sleep(0); // yield to browser so animation stays smooth
   }
   return { channels, w: W, h: H };
 }
@@ -832,19 +964,32 @@ function renderCompressed(k) {
 }
  
 function renderDiff(recs) {
+  // FIX #4: Normalise diff to full [0,255] range so it's never blank
   const { w, h } = svdData;
   const diffCanvas = document.getElementById('diff-canvas');
   diffCanvas.width = w; diffCanvas.height = h;
   const ctx = diffCanvas.getContext('2d');
   const id = ctx.createImageData(w, h);
   const orig = origImageData.data;
-  for (let i = 0; i < w*h; i++) {
-    const dr = Math.abs(orig[i*4+0] - Math.min(255,Math.max(0,recs[0][i])));
-    const dg = Math.abs(orig[i*4+1] - Math.min(255,Math.max(0,recs[1][i])));
-    const db = Math.abs(orig[i*4+2] - Math.min(255,Math.max(0,recs[2][i])));
-    id.data[i*4+0] = Math.min(255, dr*5);
-    id.data[i*4+1] = Math.min(255, dg*5);
-    id.data[i*4+2] = Math.min(255, db*5);
+
+  // First pass: find max error magnitude
+  let maxErr = 0;
+  const diffs = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const dr = Math.abs(orig[i*4+0] - Math.min(255, Math.max(0, recs[0][i])));
+    const dg = Math.abs(orig[i*4+1] - Math.min(255, Math.max(0, recs[1][i])));
+    const db = Math.abs(orig[i*4+2] - Math.min(255, Math.max(0, recs[2][i])));
+    diffs[i] = (dr + dg + db) / 3;
+    if (diffs[i] > maxErr) maxErr = diffs[i];
+  }
+
+  // Second pass: normalise and colorise (blue→red heat map)
+  const scale = maxErr > 0.5 ? 255 / maxErr : 10; // visible even at low error
+  for (let i = 0; i < w * h; i++) {
+    const v = Math.min(255, Math.round(diffs[i] * scale));
+    id.data[i*4+0] = v;             // red channel = error magnitude
+    id.data[i*4+1] = Math.round(v * 0.2);
+    id.data[i*4+2] = 255 - v;       // blue = low error
     id.data[i*4+3] = 255;
   }
   ctx.putImageData(id, 0, 0);
@@ -978,7 +1123,7 @@ function setMode(mode, el) {
   document.querySelectorAll('.ch-tab').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   if (origImageData) {
-    showLoading('Recomputing SVD...');
+    showLoading('Recomputing SVD...', 0);
     setTimeout(async () => {
       svdData = await computeSVD(origImageData.data, origImageData.w, origImageData.h);
       await buildPsnrCurve(origImageData.data, origImageData.w, origImageData.h);
@@ -1001,15 +1146,37 @@ function toggleDiff() {
 }
  
 function downloadCompressed() {
+  // FIX #5: Re-reconstruct from SVD at exact currentK into a fresh full-res canvas.
+  // Never uses the CSS-scaled display canvas — always lossless PNG at full resolution.
   if (!svdData) return;
-  const compCanvas = document.getElementById('comp-canvas');
-  const a = document.createElement('a');
-  a.download = `compressed_k${currentK}.png`;
-  a.href = compCanvas.toDataURL('image/png');
-  a.click();
-  showNotif('Downloaded compressed_k'+currentK+'.png', 'success');
+  const { channels, w, h } = svdData;
+
+  const freshCanvas = document.createElement('canvas');
+  freshCanvas.width = w;
+  freshCanvas.height = h;
+  const ctx = freshCanvas.getContext('2d');
+  const id = ctx.createImageData(w, h);
+
+  const recs = channels.map(ch => reconstruct(ch, currentK));
+  for (let i = 0; i < w * h; i++) {
+    id.data[i*4+0] = Math.min(255, Math.max(0, Math.round(recs[0][i])));
+    id.data[i*4+1] = Math.min(255, Math.max(0, Math.round(recs[1][i])));
+    id.data[i*4+2] = Math.min(255, Math.max(0, Math.round(recs[2][i])));
+    id.data[i*4+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+
+  freshCanvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = `svd_k${currentK}_${w}x${h}.png`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotif(`Downloaded — k=${currentK}, ${w}×${h}, lossless PNG`, 'success');
+  }, 'image/png');
 }
- 
+
 function resetAll() {
   origImageData = null; svdData = null;
   document.getElementById('canvas-area').classList.remove('visible');
@@ -1018,15 +1185,21 @@ function resetAll() {
   document.getElementById('file-input').value = '';
   psnrCurve = [];
 }
- 
+
 // ─── Utilities ────────────────────────────────────────────────────────
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-function showLoading(msg) {
+function showLoading(msg, progress = 0) {
   document.getElementById('loading-text').textContent = msg;
   document.getElementById('loading').classList.add('visible');
+  setLoaderProgress(progress);
+  startLoaderAnimation(); // FIX #3: start matrix animation
 }
 function updateLoadingText(msg) { document.getElementById('loading-text').textContent = msg; }
-function hideLoading() { document.getElementById('loading').classList.remove('visible'); }
+function hideLoading() {
+  stopLoaderAnimation(); // FIX #3: stop animation
+  document.getElementById('loading').classList.remove('visible');
+  setLoaderProgress(0);
+}
 function showNotif(msg, type='') {
   const n = document.getElementById('notif');
   n.textContent = msg;
