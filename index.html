@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SVD Compression Aryan Agarwal </title>
+<meta name="description" content="Interactive SVD Image Compressor — rank-k approximation in the browser. Built by Aryan Agarwal using Vanilla JS + Jacobi eigendecomposition.">
+<meta property="og:title" content="SVD Image Compressor — Aryan Agarwal">
+<meta property="og:description" content="Compress images in real-time using Singular Value Decomposition. Pure browser, no backend.">
+<meta name="theme-color" content="#7c6dfa">
+<title>SVD Image Compressor — Aryan Agarwal</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -464,13 +468,120 @@
     .ch-tab { padding: 8px 4px; font-size: 11px; }
     .presets { gap: 6px; }
   }
+
+  /* Header extras */
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .tech-chips { display: flex; gap: 6px; }
+  .chip {
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+  }
+  .gh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text);
+    text-decoration: none;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    transition: border-color 0.15s, background 0.15s;
+    font-family: var(--mono);
+  }
+  .gh-btn:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+  @media (max-width: 600px) { .tech-chips { display: none; } }
+
+  /* Footer */
+  .site-footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer-left { font-size: 12px; color: var(--muted); line-height: 1.8; }
+  .footer-left strong { color: var(--text); }
+  .footer-links { display: flex; gap: 16px; }
+  .footer-links a {
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.4px;
+    transition: color 0.15s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .footer-links a:hover { color: var(--accent); }
+  .footer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.7)} }
+  @media (max-width: 600px) {
+    .site-footer { padding: 24px 16px; flex-direction: column; align-items: flex-start; }
+  }
+
+  /* How it works info bar */
+  .info-bar {
+    max-width: 1200px;
+    margin: 0 auto 0;
+    padding: 0 40px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .info-bar::-webkit-scrollbar { display: none; }
+  .info-step {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .info-step-num {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(124,109,250,0.15);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .info-arrow { color: var(--border); font-size: 16px; flex-shrink: 0; }
+  @media (max-width: 900px) { .info-bar { padding: 0 16px; } }
+
 </style>
 </head>
 <body>
  
 <header>
   <div class="logo">SVD<span>compress</span></div>
-  <div class="badge">Aryan Agarwal </div>
+  <div class="header-right">
+    <div class="tech-chips">
+      <span class="chip">Vanilla JS</span>
+      <span class="chip">Jacobi SVD</span>
+      <span class="chip">Canvas API</span>
+    </div>
+    <a class="gh-btn" href="https://github.com/aryan24cse109-dev/SVD-COMPRESSION" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      Source
+    </a>
+  </div>
 </header>
  
 <div class="hero">
@@ -489,6 +600,16 @@
   </div>
 </div>
  
+<div class="info-bar">
+  <div class="info-step"><span class="info-step-num">1</span>Upload any PNG, JPG or WEBP image</div>
+  <span class="info-arrow">›</span>
+  <div class="info-step"><span class="info-step-num">2</span>Browser computes Jacobi SVD per channel</div>
+  <span class="info-arrow">›</span>
+  <div class="info-step"><span class="info-step-num">3</span>Drag slider to choose rank-k approximation</div>
+  <span class="info-arrow">›</span>
+  <div class="info-step"><span class="info-step-num">4</span>View metrics, error map & download lossless PNG</div>
+</div>
+
 <div class="main">
   <!-- Left column -->
   <div style="position:relative">
@@ -1207,12 +1328,30 @@ function showNotif(msg, type='') {
   setTimeout(() => n.className = 'notif', 3000);
 }
 </script>
+
+<footer>
+  <div class="site-footer">
+    <div class="footer-left">
+      <strong>Aryan Agarwal</strong> · SVD Image Compressor<br>
+      <span>Built with Vanilla JS + Jacobi SVD · No backend · No libraries</span>
+    </div>
+    <div class="footer-links">
+      <a href="notebook.ipynb" target="_blank">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Jupyter Notebook
+      </a>
+      <a href="report.pdf" target="_blank">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Full Report PDF
+      </a>
+      <a href="https://github.com/aryan24cse109-dev/SVD-COMPRESSION" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+      <span class="footer-dot" title="Deployed on GitHub Pages"></span>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
- 
-<hr>
-<p style="text-align: center;">
-    Project Documentation: 
-    <a href="notebook.ipynb" target="_blank">View Jupyter Notebook</a> | 
-    <a href="report.pdf" target="_blank">Download Full Report (PDF)</a>
-</p>
